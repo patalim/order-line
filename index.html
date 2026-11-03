@@ -385,7 +385,7 @@ function exportTopics(list, label){
            `${label}-${new Date().toISOString().slice(0,10)}.json`);
 }
 $('btnExport').onclick = () => exportTopics(topics, '題庫');
-$('btnTopicExport').onclick = () => exportTopics([cur()], '題庫-' + cur().name.replace(/[\/:*?"<>|]/g, '_'));
+$('btnTopicExport').onclick = () => exportTopics([cur()], '題庫-' + cur().name.replace(/[\\\/:*?"<>|]/g, '_'));
 $('btnTemplate').onclick = () => {
   const csv = '主題,名稱,數值,單位\n食物含糖量,🥤 可樂 (350ml),37,g\n食物含糖量,🍪 餅乾 (1片),4,g\n食物含糖量,🍎 蘋果 (1顆),19,g\n食物含糖量,🍫 巧克力 (1條),25,g\n動物體重,🐘 大象,5000,kg\n動物體重,🐈 貓,4,kg\n動物體重,🐕 狗,20,kg\n動物體重,🐇 兔子,2,kg\n';
   download(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'}), '題庫範本.csv');
