@@ -87,15 +87,24 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
       <button class="btn primary" id="btnImport">匯入題庫</button>
       <button class="btn" id="btnExport">匯出題庫</button>
       <button class="btn" id="btnTemplate">下載範本檔</button>
-      <button class="btn danger" id="btnClear">清空題庫</button>
+      <button class="btn danger" id="btnClear">清空全部</button>
       <span class="muted" id="deckCount"></span>
       <input type="file" id="fileImport" accept=".csv,.xlsx,.xls,.txt,.json" class="hidden">
     </div>
-    <p class="muted">匯入支援 CSV、Excel,以及本 App 匯出的題庫檔(.json,含圖片,適合備份或給其他老師)。CSV/Excel 欄位順序:名稱、數值、單位(單位可省略)。名稱可加 emoji,例如「🍎 蘋果」。圖片請在下方各卡片上傳。資料儲存在這台電腦的瀏覽器中。</p>
+    <p class="muted">匯入支援 CSV、Excel,以及本 App 匯出的題庫檔(.json,含圖片,適合備份或給其他老師)。CSV/Excel 欄位順序:主題、名稱、數值、單位(單位可省略),主題不存在會自動建立;若檔案沒有「主題」欄(名稱、數值、單位),則匯入目前選取的主題。名稱可加 emoji,例如「🍎 蘋果」。圖片請在下方各卡片上傳。資料儲存在這台電腦的瀏覽器中。</p>
+  </div>
+  <div class="panel">
+    <div class="row">
+      <b>主題</b>
+      <select id="selTopicEdit" style="min-width:200px"></select>
+      <button class="btn" id="btnTopicAdd">新增主題</button>
+      <button class="btn" id="btnTopicRename">重新命名</button>
+      <button class="btn danger" id="btnTopicDel">刪除主題</button>
+    </div>
   </div>
   <div class="panel">
     <div class="row addform">
-      <b>新增卡片</b>
+      <b>新增卡片到此主題</b>
       <input class="name" id="addName" placeholder="名稱(例如 🍎 蘋果)">
       <input class="val" id="addVal" type="number" step="any" placeholder="數值">
       <input class="unit" id="addUnit" placeholder="單位">
@@ -113,11 +122,11 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
     <label>方向
       <select id="selDir"><option value="asc">由小到大</option><option value="desc">由大到小</option></select>
     </label>
-    <label>主題名稱 <input id="topic" placeholder="例如:含糖量" style="width:160px"></label>
+    <label>主題 <select id="selTopic" style="min-width:160px"></select></label>
     <button class="btn primary" id="btnStart">開始新回合</button>
     <button class="btn" id="btnResetScore">重設計分</button>
   </div>
-  <div id="gameEmpty" class="empty hidden">題庫卡片不足,請先到「題庫管理」新增或匯入卡片。</div>
+  <div id="gameEmpty" class="empty hidden">此主題的卡片不足 2 張,請換一個主題,或到「題庫管理」新增卡片。</div>
   <div id="gameArea" class="hidden">
     <div class="stats">
       <div>⏱ 本回合 <b id="timer">0:00</b></div>
@@ -141,22 +150,33 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
 
 <script>
 const $ = id => document.getElementById(id);
-const KEY = 'orderline.deck.v1';
-let deck = [];            // {id,name,value,unit,img}
+const KEY = 'orderline.topics.v2', OLD_KEY = 'orderline.deck.v1';
+let topics = [];          // {id,name,cards:[{id,name,value,unit,img}]}
+let curId = null;         // 題庫管理中選取的主題
 let imgTarget = null;     // id of card receiving image
 let state = null;         // current round
 let score = {total:0, max:0, round:0};
 let timerId = null, sortable = null;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const cur = () => topics.find(t => t.id === curId);
 
 /* ---------- storage ---------- */
 function load(){
-  try{ deck = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ deck = []; }
+  try{ topics = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ topics = []; }
+  if(!topics.length){
+    // 從舊版單一題庫轉換
+    try{
+      const old = JSON.parse(localStorage.getItem(OLD_KEY)) || [];
+      if(old.length) topics = [{id:uid(), name:'我的題庫', cards:old}];
+    }catch(e){}
+  }
+  if(!topics.length) topics = [{id:uid(), name:'主題 1', cards:[]}];
+  curId = topics[0].id;
 }
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify(deck)); }
+  try{ localStorage.setItem(KEY, JSON.stringify(topics)); }
   catch(e){ alert('瀏覽器儲存空間不足,部分資料可能未儲存。請移除一些圖片。'); }
 }
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
 /* ---------- tabs ---------- */
 function showTab(t){
@@ -169,11 +189,44 @@ function showTab(t){
 $('tabGame').onclick = () => showTab('game');
 $('tabDeck').onclick = () => showTab('deck');
 
-/* ---------- deck view ---------- */
+/* ---------- topics ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function topicOptions(sel, selectedId){
+  sel.innerHTML = topics.map(t => `<option value="${t.id}">${esc(t.name)}(${t.cards.length})</option>`).join('');
+  sel.value = selectedId;
+}
+function findOrCreateTopic(name){
+  name = name.trim() || '未分類';
+  let t = topics.find(x => x.name === name);
+  if(!t){ t = {id:uid(), name, cards:[]}; topics.push(t); }
+  return t;
+}
+$('selTopicEdit').onchange = e => { curId = e.target.value; renderDeck(); };
+$('btnTopicAdd').onclick = () => {
+  const name = (prompt('新主題名稱:') || '').trim();
+  if(!name) return;
+  if(topics.some(t => t.name === name)){ alert('已有同名的主題'); return; }
+  const t = {id:uid(), name, cards:[]}; topics.push(t); curId = t.id; save(); renderDeck();
+};
+$('btnTopicRename').onclick = () => {
+  const t = cur(), name = (prompt('主題名稱:', t.name) || '').trim();
+  if(!name || name === t.name) return;
+  if(topics.some(x => x.name === name)){ alert('已有同名的主題'); return; }
+  t.name = name; save(); renderDeck();
+};
+$('btnTopicDel').onclick = () => {
+  const t = cur();
+  if(!confirm(`確定要刪除主題「${t.name}」及其 ${t.cards.length} 張卡片嗎?`)) return;
+  topics = topics.filter(x => x.id !== t.id);
+  if(!topics.length) topics = [{id:uid(), name:'主題 1', cards:[]}];
+  curId = topics[0].id; save(); renderDeck();
+};
 
+/* ---------- deck view ---------- */
 function renderDeck(){
-  $('deckCount').textContent = `共 ${deck.length} 張卡片`;
+  topicOptions($('selTopicEdit'), curId);
+  const deck = cur().cards;
+  $('deckCount').textContent = `此主題 ${deck.length} 張卡片,共 ${topics.length} 個主題`;
   $('deckList').innerHTML = deck.map(c => `
     <div class="dcard" data-id="${c.id}">
       <div class="pic">${c.img ? `<img src="${c.img}" alt="">` : '無圖片'}</div>
@@ -192,7 +245,7 @@ function renderDeck(){
 
 $('deckList').addEventListener('change', e => {
   const f = e.target.dataset.f; if(!f) return;
-  const c = deck.find(x => x.id === e.target.closest('.dcard').dataset.id);
+  const c = cur().cards.find(x => x.id === e.target.closest('.dcard').dataset.id);
   if(f === 'value'){
     const v = parseFloat(e.target.value);
     if(isNaN(v)){ e.target.value = c.value; return; }
@@ -203,8 +256,8 @@ $('deckList').addEventListener('change', e => {
 $('deckList').addEventListener('click', e => {
   const a = e.target.dataset.a; if(!a) return;
   const id = e.target.closest('.dcard').dataset.id;
-  const c = deck.find(x => x.id === id);
-  if(a === 'del'){ deck = deck.filter(x => x.id !== id); save(); renderDeck(); }
+  const t = cur(), c = t.cards.find(x => x.id === id);
+  if(a === 'del'){ t.cards = t.cards.filter(x => x.id !== id); save(); renderDeck(); }
   else if(a === 'rmimg'){ c.img = null; save(); renderDeck(); }
   else if(a === 'img'){ imgTarget = id; $('fileImg').value = ''; $('fileImg').click(); }
 });
@@ -229,7 +282,7 @@ function resizeImage(file, max=360){
 $('fileImg').onchange = async e => {
   const f = e.target.files[0]; if(!f || !imgTarget) return;
   try{
-    const c = deck.find(x => x.id === imgTarget);
+    const c = cur().cards.find(x => x.id === imgTarget);
     c.img = await resizeImage(f); save(); renderDeck();
   }catch(err){ alert('無法讀取這張圖片'); }
 };
@@ -237,17 +290,19 @@ $('fileImg').onchange = async e => {
 $('btnAdd').onclick = () => {
   const name = $('addName').value.trim(), v = parseFloat($('addVal').value);
   if(!name || isNaN(v)){ alert('請輸入名稱與數值'); return; }
-  deck.push({id:uid(), name, value:v, unit:$('addUnit').value.trim(), img:null});
+  cur().cards.push({id:uid(), name, value:v, unit:$('addUnit').value.trim(), img:null});
   save(); renderDeck();
   $('addName').value = ''; $('addVal').value = ''; $('addName').focus();
 };
 $('addVal').addEventListener('keydown', e => { if(e.key==='Enter') $('btnAdd').click(); });
 
 $('btnClear').onclick = () => {
-  if(deck.length && confirm('確定要清空整個題庫嗎?')){ deck = []; save(); renderDeck(); }
+  if(confirm('確定要清空所有主題與卡片嗎?此動作無法復原。')){
+    topics = [{id:uid(), name:'主題 1', cards:[]}]; curId = topics[0].id; save(); renderDeck();
+  }
 };
 
-/* ---------- import / template ---------- */
+/* ---------- import / export ---------- */
 function parseCSV(text){
   text = text.replace(/^﻿/, '');
   const rows = []; let row = [], cell = '', q = false;
@@ -266,77 +321,94 @@ function parseCSV(text){
   if(cell !== '' || row.length){ row.push(cell); rows.push(row); }
   return rows;
 }
+function summary(added, skipped, extra=''){
+  alert(`已匯入 ${added} 張卡片` + extra + (skipped ? `,略過 ${skipped} 筆無效或重複資料` : ''));
+}
 function addRows(rows){
+  // 第一欄標題為「主題」→ 四欄格式(主題,名稱,數值,單位);否則三欄格式匯入目前主題
+  const withTopic = rows.length && /^(主題|topic)$/i.test(String(rows[0][0]).trim());
+  const before = topics.length;
   let added = 0, skipped = 0;
   rows.forEach((r, i) => {
-    const name = String(r[0] ?? '').trim();
-    const v = parseFloat(String(r[1] ?? '').replace(/,/g, ''));
-    if(!name || isNaN(v)){ if(i > 0) skipped++; return; }   // 第一列非數值視為標題
-    deck.push({id:uid(), name, value:v, unit:String(r[2] ?? '').trim(), img:null});
+    const [tp, name, val, unit] = withTopic ? [r[0], r[1], r[2], r[3]] : [null, r[0], r[1], r[2]];
+    const n = String(name ?? '').trim(), v = parseFloat(String(val ?? '').replace(/,/g, ''));
+    if(!n || isNaN(v)){ if(i > 0) skipped++; return; }   // 第一列非數值視為標題
+    const t = withTopic ? findOrCreateTopic(String(tp ?? '')) : cur();
+    t.cards.push({id:uid(), name:n, value:v, unit:String(unit ?? '').trim(), img:null});
     added++;
   });
   save(); renderDeck();
-  alert(`已匯入 ${added} 張卡片` + (skipped ? `,略過 ${skipped} 列無效資料` : ''));
+  summary(added, skipped, topics.length > before ? `,新增 ${topics.length - before} 個主題` : '');
+}
+function importJSON(text){
+  const data = JSON.parse(text);
+  // 新版 {topics:[...]};舊版 {cards:[...]} 或純陣列 → 匯入目前主題
+  const groups = Array.isArray(data.topics) ? data.topics
+    : [{name:null, cards:Array.isArray(data) ? data : data.cards}];
+  if(groups.some(g => !g || !Array.isArray(g.cards))) throw new Error('format');
+  const before = topics.length;
+  let added = 0, skipped = 0;
+  groups.forEach(g => {
+    const t = g.name ? findOrCreateTopic(String(g.name)) : cur();
+    const have = new Set(t.cards.map(c => c.id));
+    g.cards.forEach(c => {
+      const v = parseFloat(c && c.value);
+      if(!c || !String(c.name || '').trim() || isNaN(v) || (c.id && have.has(c.id))){ skipped++; return; }
+      const img = typeof c.img === 'string' && c.img.startsWith('data:image/') ? c.img : null;
+      t.cards.push({id:c.id || uid(), name:String(c.name).trim(), value:v, unit:String(c.unit || '').trim(), img});
+      added++;
+    });
+  });
+  save(); renderDeck();
+  summary(added, skipped, topics.length > before ? `,新增 ${topics.length - before} 個主題` : '');
 }
 $('btnImport').onclick = () => { $('fileImport').value = ''; $('fileImport').click(); };
 $('fileImport').onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
   try{
-    if(/\.json$/i.test(f.name)){
-      importJSON(await f.text());
-    } else if(/\.xlsx?$/i.test(f.name)){
+    if(/\.json$/i.test(f.name)) importJSON(await f.text());
+    else if(/\.xlsx?$/i.test(f.name)){
       if(typeof XLSX === 'undefined'){ alert('Excel 讀取元件未載入(可能沒有網路),請改用 CSV。'); return; }
       const wb = XLSX.read(await f.arrayBuffer(), {type:'array'});
       addRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''}));
     } else addRows(parseCSV(await f.text()));
   }catch(err){ alert('檔案讀取失敗,請確認格式。'); }
 };
-function importJSON(text){
-  const data = JSON.parse(text);
-  const list = Array.isArray(data) ? data : data.cards;
-  if(!Array.isArray(list)) throw new Error('format');
-  const have = new Set(deck.map(c => c.id));
-  let added = 0, skipped = 0;
-  list.forEach(c => {
-    const v = parseFloat(c && c.value);
-    if(!c || !String(c.name || '').trim() || isNaN(v)){ skipped++; return; }
-    if(c.id && have.has(c.id)){ skipped++; return; }
-    const img = typeof c.img === 'string' && c.img.startsWith('data:image/') ? c.img : null;
-    deck.push({id:c.id || uid(), name:String(c.name).trim(), value:v, unit:String(c.unit || '').trim(), img});
-    added++;
-  });
-  save(); renderDeck();
-  alert(`已匯入 ${added} 張卡片` + (skipped ? `,略過 ${skipped} 張(重複或無效)` : ''));
+function download(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
 }
 $('btnExport').onclick = () => {
-  if(!deck.length){ alert('題庫是空的,沒有可匯出的內容'); return; }
-  const blob = new Blob([JSON.stringify({app:'order-line', version:1, cards:deck})], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = '題庫-' + new Date().toISOString().slice(0,10) + '.json';
-  a.click(); URL.revokeObjectURL(a.href);
+  if(!topics.some(t => t.cards.length)){ alert('題庫是空的,沒有可匯出的內容'); return; }
+  download(new Blob([JSON.stringify({app:'order-line', version:2, topics})], {type:'application/json'}),
+           '題庫-' + new Date().toISOString().slice(0,10) + '.json');
 };
 $('btnTemplate').onclick = () => {
-  const csv = '名稱,數值,單位\n🥤 可樂 (350ml),37,g\n🍪 餅乾 (1片),4,g\n🍎 蘋果 (1顆),19,g\n🍫 巧克力 (1條),25,g\n🍞 吐司 (1片),2,g\n';
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'}));
-  a.download = '題庫範本.csv'; a.click(); URL.revokeObjectURL(a.href);
+  const csv = '主題,名稱,數值,單位\n食物含糖量,🥤 可樂 (350ml),37,g\n食物含糖量,🍪 餅乾 (1片),4,g\n食物含糖量,🍎 蘋果 (1顆),19,g\n食物含糖量,🍫 巧克力 (1條),25,g\n動物體重,🐘 大象,5000,kg\n動物體重,🐈 貓,4,kg\n動物體重,🐕 狗,20,kg\n動物體重,🐇 兔子,2,kg\n';
+  download(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'}), '題庫範本.csv');
 };
 
 /* ---------- game ---------- */
+function gameTopic(){ return topics.find(t => t.id === $('selTopic').value) || topics[0]; }
 function refreshSetup(){
-  const sel = $('selN'), cur = +sel.value || 4, max = Math.min(deck.length, 12);
+  const prev = $('selTopic').value;
+  topicOptions($('selTopic'), topics.some(t => t.id === prev) ? prev : (topics.find(t => t.cards.length >= 2) || topics[0]).id);
+  refreshN();
+}
+function refreshN(){
+  const t = gameTopic(), sel = $('selN'), prevN = +sel.value || 4, max = Math.min(t.cards.length, 12);
   sel.innerHTML = '';
   for(let i = 2; i <= Math.max(max, 2); i++) sel.add(new Option(i, i));
-  sel.value = Math.min(cur, Math.max(max, 2));
-  const ok = deck.length >= 2;
+  sel.value = Math.min(prevN, Math.max(max, 2));
+  const ok = t.cards.length >= 2;
   $('gameEmpty').classList.toggle('hidden', ok);
   $('btnStart').disabled = !ok;
   if(!ok) $('gameArea').classList.add('hidden');
 }
+$('selTopic').onchange = refreshN;
 
 function fmt(c){ return `${c.value}${c.unit ? ' ' + c.unit : ''}`; }
-function cardHTML(c, idx){
+function cardHTML(c){
   return `<div class="gcard" data-id="${c.id}">
     <div class="rank"></div>
     ${c.img ? `<img class="img" src="${c.img}" alt="">` : ''}
@@ -347,6 +419,7 @@ function cardHTML(c, idx){
 function fmtTime(s){ return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
 
 function startRound(){
+  const t = gameTopic(), deck = t.cards;
   if(deck.length < 2) return;
   const n = Math.min(+$('selN').value, deck.length);
   const pool = [...deck];
@@ -357,15 +430,14 @@ function startRound(){
   const sorted = [...cards].sort((a,b) => dir==='asc' ? a.value-b.value : b.value-a.value);
   let shuffled = [...cards];
   if(n > 1 && new Set(cards.map(c => c.value)).size > 1){
-    for(let t = 0; t < 20 && shuffled.every((c,i) => c.value === sorted[i].value); t++)
+    for(let k = 0; k < 20 && shuffled.every((c,i) => c.value === sorted[i].value); k++)
       shuffled.sort(() => Math.random() - .5);
   }
   state = {cards:shuffled, sorted, dir, revealed:false, start:Date.now(), elapsed:0};
   score.round++;
-  const topic = $('topic').value.trim();
   const big = dir==='asc' ? '小' : '大', small = dir==='asc' ? '大' : '小';
-  $('axL').textContent = '← ' + (topic ? topic + ' ' : '') + big;
-  $('axR').textContent = (topic ? topic + ' ' : '') + small + ' →';
+  $('axL').textContent = `← ${t.name} ${big}`;
+  $('axR').textContent = `${t.name} ${small} →`;
 
   $('line').classList.remove('revealed');
   $('line').innerHTML = shuffled.map(cardHTML).join('');
@@ -433,7 +505,6 @@ $('btnResetScore').onclick = () => { score = {total:0, max:0, round:0}; $('round
 /* ---------- init ---------- */
 load();
 refreshSetup();
-if(deck.length < 2) $('gameEmpty').classList.remove('hidden');
 </script>
 </body>
 </html>
