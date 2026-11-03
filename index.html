@@ -85,7 +85,7 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
   <div class="panel">
     <div class="row">
       <button class="btn primary" id="btnImport">匯入題庫</button>
-      <button class="btn" id="btnExport">匯出題庫</button>
+      <button class="btn" id="btnExport">匯出全部題庫</button>
       <button class="btn" id="btnTemplate">下載範本檔</button>
       <button class="btn danger" id="btnClear">清空全部</button>
       <span class="muted" id="deckCount"></span>
@@ -99,6 +99,7 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
       <select id="selTopicEdit" style="min-width:200px"></select>
       <button class="btn" id="btnTopicAdd">新增主題</button>
       <button class="btn" id="btnTopicRename">重新命名</button>
+      <button class="btn" id="btnTopicExport">匯出此主題</button>
       <button class="btn danger" id="btnTopicDel">刪除主題</button>
     </div>
   </div>
@@ -378,11 +379,13 @@ function download(blob, name){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href);
 }
-$('btnExport').onclick = () => {
-  if(!topics.some(t => t.cards.length)){ alert('題庫是空的,沒有可匯出的內容'); return; }
-  download(new Blob([JSON.stringify({app:'order-line', version:2, topics})], {type:'application/json'}),
-           '題庫-' + new Date().toISOString().slice(0,10) + '.json');
-};
+function exportTopics(list, label){
+  if(!list.some(t => t.cards.length)){ alert('沒有可匯出的卡片'); return; }
+  download(new Blob([JSON.stringify({app:'order-line', version:2, topics:list})], {type:'application/json'}),
+           `${label}-${new Date().toISOString().slice(0,10)}.json`);
+}
+$('btnExport').onclick = () => exportTopics(topics, '題庫');
+$('btnTopicExport').onclick = () => exportTopics([cur()], '題庫-' + cur().name.replace(/[\/:*?"<>|]/g, '_'));
 $('btnTemplate').onclick = () => {
   const csv = '主題,名稱,數值,單位\n食物含糖量,🥤 可樂 (350ml),37,g\n食物含糖量,🍪 餅乾 (1片),4,g\n食物含糖量,🍎 蘋果 (1顆),19,g\n食物含糖量,🍫 巧克力 (1條),25,g\n動物體重,🐘 大象,5000,kg\n動物體重,🐈 貓,4,kg\n動物體重,🐕 狗,20,kg\n動物體重,🐇 兔子,2,kg\n';
   download(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'}), '題庫範本.csv');
