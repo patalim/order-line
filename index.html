@@ -84,13 +84,14 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
 <section id="deckView" class="hidden">
   <div class="panel">
     <div class="row">
-      <button class="btn primary" id="btnImport">匯入 CSV / Excel</button>
+      <button class="btn primary" id="btnImport">匯入題庫</button>
+      <button class="btn" id="btnExport">匯出題庫</button>
       <button class="btn" id="btnTemplate">下載範本檔</button>
       <button class="btn danger" id="btnClear">清空題庫</button>
       <span class="muted" id="deckCount"></span>
-      <input type="file" id="fileImport" accept=".csv,.xlsx,.xls,.txt" class="hidden">
+      <input type="file" id="fileImport" accept=".csv,.xlsx,.xls,.txt,.json" class="hidden">
     </div>
-    <p class="muted">檔案欄位順序:名稱、數值、單位(單位可省略)。名稱可加 emoji,例如「🍎 蘋果」。圖片請在下方各卡片上傳。資料儲存在這台電腦的瀏覽器中。</p>
+    <p class="muted">匯入支援 CSV、Excel,以及本 App 匯出的題庫檔(.json,含圖片,適合備份或給其他老師)。CSV/Excel 欄位順序:名稱、數值、單位(單位可省略)。名稱可加 emoji,例如「🍎 蘋果」。圖片請在下方各卡片上傳。資料儲存在這台電腦的瀏覽器中。</p>
   </div>
   <div class="panel">
     <div class="row addform">
@@ -281,12 +282,39 @@ $('btnImport').onclick = () => { $('fileImport').value = ''; $('fileImport').cli
 $('fileImport').onchange = async e => {
   const f = e.target.files[0]; if(!f) return;
   try{
-    if(/\.xlsx?$/i.test(f.name)){
+    if(/\.json$/i.test(f.name)){
+      importJSON(await f.text());
+    } else if(/\.xlsx?$/i.test(f.name)){
       if(typeof XLSX === 'undefined'){ alert('Excel 讀取元件未載入(可能沒有網路),請改用 CSV。'); return; }
       const wb = XLSX.read(await f.arrayBuffer(), {type:'array'});
       addRows(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''}));
     } else addRows(parseCSV(await f.text()));
   }catch(err){ alert('檔案讀取失敗,請確認格式。'); }
+};
+function importJSON(text){
+  const data = JSON.parse(text);
+  const list = Array.isArray(data) ? data : data.cards;
+  if(!Array.isArray(list)) throw new Error('format');
+  const have = new Set(deck.map(c => c.id));
+  let added = 0, skipped = 0;
+  list.forEach(c => {
+    const v = parseFloat(c && c.value);
+    if(!c || !String(c.name || '').trim() || isNaN(v)){ skipped++; return; }
+    if(c.id && have.has(c.id)){ skipped++; return; }
+    const img = typeof c.img === 'string' && c.img.startsWith('data:image/') ? c.img : null;
+    deck.push({id:c.id || uid(), name:String(c.name).trim(), value:v, unit:String(c.unit || '').trim(), img});
+    added++;
+  });
+  save(); renderDeck();
+  alert(`已匯入 ${added} 張卡片` + (skipped ? `,略過 ${skipped} 張(重複或無效)` : ''));
+}
+$('btnExport').onclick = () => {
+  if(!deck.length){ alert('題庫是空的,沒有可匯出的內容'); return; }
+  const blob = new Blob([JSON.stringify({app:'order-line', version:1, cards:deck})], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '題庫-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
 };
 $('btnTemplate').onclick = () => {
   const csv = '名稱,數值,單位\n🥤 可樂 (350ml),37,g\n🍪 餅乾 (1片),4,g\n🍎 蘋果 (1顆),19,g\n🍫 巧克力 (1條),25,g\n🍞 吐司 (1片),2,g\n';
