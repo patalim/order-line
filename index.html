@@ -87,6 +87,7 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
       <button class="btn primary" id="btnImport">匯入題庫</button>
       <button class="btn" id="btnExport">匯出全部題庫</button>
       <button class="btn" id="btnTemplate">下載範本檔</button>
+      <button class="btn" id="btnSample">載入範例題庫(水果)</button>
       <button class="btn danger" id="btnClear">清空全部</button>
       <span class="muted" id="deckCount"></span>
       <input type="file" id="fileImport" accept=".csv,.xlsx,.xls,.txt,.json" class="hidden">
@@ -161,6 +162,39 @@ let timerId = null, sortable = null;
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const cur = () => topics.find(t => t.id === curId);
 
+/* ---------- 預設範例題庫 ---------- */
+// 每 100 克可食部分的總糖量(約略值,參考 USDA FoodData Central)
+const SAMPLE_TOPIC = {name:'水果含糖量(每100克)', cards:[
+  {id:'fruit-01', name:'🥑 酪梨', value:0.7, unit:'g', img:null},
+  {id:'fruit-02', name:'🍋 檸檬', value:2.5, unit:'g', img:null},
+  {id:'fruit-03', name:'🍓 草莓', value:4.9, unit:'g', img:null},
+  {id:'fruit-04', name:'木瓜', value:5.9, unit:'g', img:null},
+  {id:'fruit-05', name:'🍉 西瓜', value:6.2, unit:'g', img:null},
+  {id:'fruit-06', name:'🍈 哈密瓜', value:7.9, unit:'g', img:null},
+  {id:'fruit-07', name:'🍑 水蜜桃', value:8.4, unit:'g', img:null},
+  {id:'fruit-08', name:'🥝 奇異果', value:9, unit:'g', img:null},
+  {id:'fruit-09', name:'🍊 柳橙', value:9.4, unit:'g', img:null},
+  {id:'fruit-10', name:'🍐 梨子', value:9.8, unit:'g', img:null},
+  {id:'fruit-11', name:'🍍 鳳梨', value:9.9, unit:'g', img:null},
+  {id:'fruit-12', name:'🫐 藍莓', value:10, unit:'g', img:null},
+  {id:'fruit-13', name:'🍎 蘋果', value:10.4, unit:'g', img:null},
+  {id:'fruit-14', name:'百香果', value:11.2, unit:'g', img:null},
+  {id:'fruit-15', name:'🍌 香蕉', value:12.2, unit:'g', img:null},
+  {id:'fruit-16', name:'柿子', value:12.5, unit:'g', img:null},
+  {id:'fruit-17', name:'🍒 櫻桃', value:12.8, unit:'g', img:null},
+  {id:'fruit-18', name:'🥭 芒果', value:13.7, unit:'g', img:null},
+  {id:'fruit-19', name:'荔枝', value:15.2, unit:'g', img:null},
+  {id:'fruit-20', name:'🍇 葡萄', value:15.5, unit:'g', img:null}
+]};
+function addSampleTopic(){
+  const t = findOrCreateTopic(SAMPLE_TOPIC.name);
+  const have = new Set(t.cards.map(c => c.id));
+  const fresh = SAMPLE_TOPIC.cards.filter(c => !have.has(c.id)).map(c => ({...c}));
+  t.cards.push(...fresh);
+  curId = t.id; save(); renderDeck();
+  return fresh.length;
+}
+
 /* ---------- storage ---------- */
 function load(){
   try{ topics = JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ topics = []; }
@@ -171,7 +205,7 @@ function load(){
       if(old.length) topics = [{id:uid(), name:'我的題庫', cards:old}];
     }catch(e){}
   }
-  if(!topics.length) topics = [{id:uid(), name:'主題 1', cards:[]}];
+  if(!topics.length) topics = [{id:uid(), name:SAMPLE_TOPIC.name, cards:SAMPLE_TOPIC.cards.map(c => ({...c}))}];
   curId = topics[0].id;
 }
 function save(){
@@ -386,6 +420,10 @@ function exportTopics(list, label){
 }
 $('btnExport').onclick = () => exportTopics(topics, '題庫');
 $('btnTopicExport').onclick = () => exportTopics([cur()], '題庫-' + cur().name.replace(/[\\\/:*?"<>|]/g, '_'));
+$('btnSample').onclick = () => {
+  const n = addSampleTopic();
+  alert(n ? `已加入範例主題「${SAMPLE_TOPIC.name}」(${n} 張卡片)` : '範例主題已經在題庫中了');
+};
 $('btnTemplate').onclick = () => {
   const csv = '主題,名稱,數值,單位\n食物含糖量,🥤 可樂 (350ml),37,g\n食物含糖量,🍪 餅乾 (1片),4,g\n食物含糖量,🍎 蘋果 (1顆),19,g\n食物含糖量,🍫 巧克力 (1條),25,g\n動物體重,🐘 大象,5000,kg\n動物體重,🐈 貓,4,kg\n動物體重,🐕 狗,20,kg\n動物體重,🐇 兔子,2,kg\n';
   download(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'}), '題庫範本.csv');
