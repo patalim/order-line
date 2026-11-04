@@ -219,8 +219,8 @@ button.danger { color: var(--warn); border-color: var(--warn); }
 .sort-answer .muted { text-align: center; margin: 4px 0; }
 .sort-answer .sort-line { min-height: 0; border-style: solid; }
 .sort-answer .sort-card { cursor: default; border-color: #1f7a33; }
-.sort-controls { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
-.sort-controls button { min-width: 200px; min-height: 64px; font-size: 1.2rem; }
+.sort-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 16px; }
+.sort-controls button { min-width: min(200px, 100%); min-height: 64px; font-size: 1.2rem; }
 
 /* ---- 連連看 ---- */
 .match-board { position: relative; display: flex; justify-content: space-between; gap: clamp(70px, 20vw, 260px); padding: 14px; border: 3px dashed var(--line); border-radius: 18px; background: var(--panel); }
@@ -243,3 +243,14 @@ button.danger { color: var(--warn); border-color: var(--warn); }
 .match-lines line.ok { stroke: #1f7a33; }
 .match-lines line.no { stroke: var(--warn); opacity: 0.65; }
 .match-lines line.ans { stroke: #1f7a33; stroke-dasharray: 10 8; }
+
+/* ---- 手機寬度 ---- */
+@media (max-width: 480px) {
+  #nav { gap: 4px; padding-left: 8px; padding-right: 8px; }
+  #nav button { flex: 1 1 0; min-width: 0; padding: 4px 2px; font-size: 0.9rem; }
+  .sort-result { font-size: 1.25rem; }
+  .sort-axis { font-size: 1rem; }
+  .sort-line { gap: 10px; padding: 10px; }
+  .sort-card { min-width: 120px; }
+  .match-board { gap: 56px; padding: 10px; }
+}

@@ -13,7 +13,7 @@ test('單機版：CSS 與程式都內嵌，不再引用外部檔案', () => {
   assert.ok(html.includes('<style>'));
   assert.ok(!html.includes('src="src/'));
   assert.ok(!html.includes('href="src/'));
-  assert.ok(html.includes('<title>翻牌配對</title>'));
+  assert.ok(html.includes('<title>教學小遊戲</title>'));
 });
 
 test('單機版：合併後沒有殘留 import／export', () => {
@@ -22,7 +22,7 @@ test('單機版：合併後沒有殘留 import／export', () => {
 });
 
 test('單機版：所有模組都有被合併進來', () => {
-  for (const name of ['src/game/state.js', 'src/store/db.js', 'src/ui/editor.js', 'src/ui/main.js']) {
+  for (const name of ['src/game/state.js', 'src/game/sort.js', 'src/game/match.js', 'src/store/db.js', 'src/store/legacy.js', 'src/ui/editor.js', 'src/ui/sort.js', 'src/ui/match.js', 'src/ui/main.js']) {
     assert.ok(script.includes(`// ---- ${name} ----`), name);
   }
 });

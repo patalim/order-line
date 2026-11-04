@@ -1,7 +1,7 @@
 // 單機版打包：把 index.html、CSS 與所有 ES module 合併成「單一 HTML 檔」，
 // 不需要伺服器，雙擊就能用瀏覽器開啟（file://）。只用 Node 內建模組，沒有第三方套件。
 //
-//   node scripts/build-standalone.js        → dist/翻牌配對.html
+//   node scripts/build-standalone.js        → dist/教學小遊戲.html
 //
 // 這不是通用打包器，只支援本專案用到的寫法：
 //   import { a, b } from './x.js';     （不支援 default、* as、改名 as）
@@ -87,7 +87,7 @@ export function buildStandalone() {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const html = buildStandalone();
   mkdirSync(resolve(root, 'dist'), { recursive: true });
-  const out = resolve(root, 'dist', '翻牌配對.html');
+  const out = resolve(root, 'dist', '教學小遊戲.html');
   writeFileSync(out, html);
   console.log(`已產生 ${relative(root, out)}（${(Buffer.byteLength(html) / 1024).toFixed(0)} KB）`);
 }
