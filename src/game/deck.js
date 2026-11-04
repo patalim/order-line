@@ -1,9 +1,10 @@
 import { shuffle } from './rng.js';
+import { resolveB } from './pair.js';
 
 // 牌面內容的比對鍵：文字去頭尾空白；圖片用 data URL 本身（同一張圖縮圖結果相同）。
 export const contentKey = (c) => `${c.type}:${c.type === 'text' ? c.value.trim() : c.value}`;
 
-// pairs: [{ id, a: {type, value}, b: {type, value} }]
+// pairs: [{ id, a: {type, value}, b?: {type, value}, value?, unit? }]（b 省略時由數值與單位產生）
 // 從題庫隨機抽 pairCount 組，每組產生兩張牌，再整副洗牌。
 // 每張牌帶 key（自己的牌面）與 partnerKey（它的配對對象的牌面）；
 // 多組配對共用同一個答案時（3+4 → 7、5+2 → 7），牌面相同的牌就能互換。
@@ -16,9 +17,10 @@ export function buildDeck(pairs, pairCount, rng = Math.random) {
   }
   const cards = [];
   for (const pair of shuffle(pairs, rng).slice(0, pairCount)) {
-    const [ka, kb] = [contentKey(pair.a), contentKey(pair.b)];
+    const b = resolveB(pair);
+    const [ka, kb] = [contentKey(pair.a), contentKey(b)];
     cards.push({ pairId: pair.id, content: pair.a, key: ka, partnerKey: kb });
-    cards.push({ pairId: pair.id, content: pair.b, key: kb, partnerKey: ka });
+    cards.push({ pairId: pair.id, content: b, key: kb, partnerKey: ka });
   }
   return shuffle(cards, rng).map((card, i) => ({ id: i, ...card }));
 }
