@@ -13,10 +13,24 @@ export function h(tag, props = {}, ...children) {
 }
 
 let cleanup = () => {};
+let leaveGuard = null;
+
+// 畫面要在「離開前確認」時註冊：回傳 false 代表使用者選擇留下。切換畫面時自動清除。
+export function setLeaveGuard(fn) {
+  leaveGuard = fn;
+}
+
+export const canLeave = () => (leaveGuard ? leaveGuard() : true);
+
+// 標示目前在上方選單的哪一個頁籤。
+export function setNav(key) {
+  document.querySelectorAll('#nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.key === key ? 'page' : 'false'));
+}
 
 export function show(render) {
   cleanup();
   cleanup = () => {};
+  leaveGuard = null;
   app.replaceChildren();
   render();
 }

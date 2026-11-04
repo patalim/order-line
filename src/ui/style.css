@@ -29,6 +29,7 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
+  display: flex; flex-direction: column;
   background: var(--bg);
   color: var(--ink);
   font-family: system-ui, "Microsoft JhengHei", "PingFang TC", sans-serif;
@@ -36,7 +37,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 #app {
-  height: 100%; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain;
+  flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain;
   padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
            max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
 }
@@ -188,3 +189,35 @@ button.danger { color: var(--warn); border-color: var(--warn); }
 .side .small { margin: 0; min-height: 0; }
 .bank-tools { margin-bottom: 12px; flex-wrap: wrap; }
 @media (max-width: 640px) { .pair-extra { grid-column: 2; } }
+
+/* ---- 上方選單 ---- */
+#nav { flex: none; display: flex; gap: 6px; padding: max(8px, env(safe-area-inset-top)) 12px 0; overflow-x: auto; }
+#nav button { min-height: 44px; padding: 4px 16px; border-radius: 12px 12px 0 0; border-bottom-width: 0; white-space: nowrap; }
+#nav button[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
+
+/* ---- 大小排序 ---- */
+.sort-game { max-width: 1400px; width: 100%; margin: 0 auto; padding-bottom: 16px; }
+.sort-axis { display: flex; justify-content: space-between; gap: 12px; margin: 6px 4px; font-size: 1.3rem; font-weight: 800; color: color-mix(in srgb, var(--ink) 65%, transparent); }
+.sort-line { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; padding: 14px; min-height: 200px; border: 3px dashed var(--line); border-radius: 18px; background: var(--panel); }
+.sort-card {
+  flex: 1 1 0; min-width: 130px; max-width: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px; border: 4px solid var(--line); border-radius: 16px; background: var(--card-front); text-align: center;
+  cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.sort-card.dragging { z-index: 3; cursor: grabbing; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3); opacity: 0.92; }
+.sort-face { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; }
+.face-img { width: 100%; max-height: 150px; object-fit: contain; pointer-events: none; }
+.face-text { font-size: clamp(1.2rem, 2.6vw, 2rem); font-weight: 800; word-break: break-word; }
+.sort-value { display: none; font-size: clamp(1.2rem, 2.4vw, 1.8rem); font-weight: 800; }
+.sort-line.revealed .sort-value, .sort-answer .sort-value { display: block; }
+.sort-line.revealed .sort-card { cursor: default; }
+.sort-card.ok { background: var(--matched); border-color: #1f7a33; }
+.sort-card.no { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, var(--panel)); }
+.sort-mark { min-height: 1.4em; font-weight: 800; }
+.sort-result { margin: 16px 0 8px; text-align: center; font-size: 1.6rem; font-weight: 800; }
+.sort-answer { margin-top: 8px; }
+.sort-answer .muted { text-align: center; margin: 4px 0; }
+.sort-answer .sort-line { min-height: 0; border-style: solid; }
+.sort-answer .sort-card { cursor: default; border-color: #1f7a33; }
+.sort-controls { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
+.sort-controls button { min-width: 200px; min-height: 64px; font-size: 1.2rem; }

@@ -1,4 +1,4 @@
-import { h, app, show } from './dom.js';
+import { h, app, show, setNav, setLeaveGuard } from './dom.js';
 import { loadAllBanks, saveBank, removeBank } from '../store/banks.js';
 import { blankPair, cloneBank, createBank, validateBank, LIMITS } from '../store/bank-model.js';
 import { processImageFile } from './image.js';
@@ -49,6 +49,7 @@ async function readImportFile(file) {
 export async function showBankList({ onBack }) {
   const { banks, storageOk } = await loadAllBanks();
   show(() => {
+    setNav('bank');
     const refresh = () => showBankList({ onBack });
     const fail = (e) => alert(`操作失敗：${e.message}`);
 
@@ -116,6 +117,7 @@ function showBankEditor(source, { onDone, isNew = false }) {
     const draft = { id: source.id, name: source.name, pairs: structuredClone(source.pairs), updatedAt: source.updatedAt };
     let dirty = isNew;
     const touch = () => { dirty = true; status.textContent = ''; };
+    setLeaveGuard(() => !dirty || confirm('還沒儲存，確定要離開嗎？'));
 
     const status = h('span', { class: 'muted', role: 'status' });
     const nameInput = h('input', { type: 'text', value: draft.name, maxlength: LIMITS.nameMax, 'aria-label': '題庫名稱' });

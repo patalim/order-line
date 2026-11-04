@@ -7,8 +7,9 @@ import { recordResult } from '../store/records.js';
 import { createBoard } from './board.js';
 import { play, setSoundEnabled } from './audio.js';
 import { loadAllBanks } from '../store/banks.js';
-import { app, h, show, onLeave } from './dom.js';
+import { app, h, show, onLeave, setNav, setLeaveGuard, canLeave } from './dom.js';
 import { showBankList } from './editor.js';
+import { showSortSetup } from './sort.js';
 
 const MAX_PLAYERS = 6;
 const MATCH_DELAY = 700;
@@ -18,6 +19,7 @@ const MISS_DELAY = 1100;
 async function showSetup() {
   const { banks } = await loadAllBanks();
   show(() => {
+    setNav('memory');
     const settings = loadSettings();
     let bank = banks.find((b) => b.id === settings.bankId) ?? banks[0];
     let playerCount = Math.min(settings.players.length, MAX_PLAYERS);
@@ -222,6 +224,7 @@ function startGame(bank, pairs, opts) {
       dialog.showModal();
     }
 
+    setLeaveGuard(() => startedAt == null || state.finished || confirm('遊戲還沒結束，確定要離開嗎？'));
     onLeave(() => {
       clearInterval(timerId);
       clearTimeout(resolveId);
@@ -242,6 +245,15 @@ function startGame(bank, pairs, opts) {
     renderHud();
   });
 }
+
+// ---------------- 上方選單 ----------------
+const SCREENS = [
+  ['memory', '翻牌配對', showSetup],
+  ['sort', '大小排序', showSortSetup],
+  ['bank', '題庫管理', () => showBankList({ onBack: showSetup })],
+];
+document.getElementById('nav').append(...SCREENS.map(([key, label, open]) =>
+  h('button', { type: 'button', 'data-key': key, onclick: () => { if (canLeave()) open(); } }, label)));
 
 setSoundEnabled(loadSettings().sound);
 showSetup();
