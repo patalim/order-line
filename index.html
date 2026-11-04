@@ -186,6 +186,7 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
     </div>
     <div class="result hidden" id="mResult"></div>
     <div class="controls">
+      <button class="btn" id="btnCheckM">核對答案(不顯示答案)</button>
       <button class="btn primary" id="btnRevealM">顯示正確答案</button>
       <button class="btn primary hidden" id="btnNextM">下一回合</button>
     </div>
@@ -627,11 +628,14 @@ function startMatch(){
     cards, left:shuffle([...cards]),
     right:shuffle(cards.map(c => ({owner:c.id, value:c.value, unit:c.unit}))),
     links:{},            // 左邊卡片 id → 右邊索引
+    locked:new Set(),    // 核對後答對、已鎖定的左邊卡片 id
+    flagged:new Set(),   // 核對後答錯、等下一位玩家操作時清除的左邊卡片 id
     sel:null, revealed:false, start:Date.now()
   };
   score.round++; updateScore();
   $('mResult').classList.add('hidden');
   $('btnRevealM').classList.remove('hidden');
+  $('btnCheckM').classList.remove('hidden');
   $('btnNextM').classList.add('hidden');
   $('mArea').classList.remove('hidden');
   renderMatch();
@@ -643,12 +647,13 @@ function startMatch(){
 function renderMatch(){
   const m = mState;
   const linkedR = new Map(Object.entries(m.links).map(([id, ri]) => [ri, id]));
-  const cls = (base, sel, linked, ok) =>
-    'mitem' + (linked ? ' linked' : '') + (sel ? ' sel' : '') + (m.revealed && linked ? (ok ? ' ok' : ' no') : '');
-  $('mLeft').innerHTML = m.left.map(c => `<div class="${cls('L', m.sel && m.sel.side==='L' && m.sel.id===c.id, c.id in m.links, mOk(m, c.id))}" data-side="L" data-id="${c.id}">${c.img ? `<img src="${c.img}" alt="" onload="drawLines()">` : ''}<span>${esc(c.name)}</span></div>`).join('');
+  const cls = (base, sel, linked, ok, lock, flag) =>
+    'mitem' + (linked ? ' linked' : '') + (sel ? ' sel' : '') +
+    (m.revealed && linked ? (ok ? ' ok' : ' no') : lock ? ' ok' : flag ? ' no' : '');
+  $('mLeft').innerHTML = m.left.map(c => `<div class="${cls('L', m.sel && m.sel.side==='L' && m.sel.id===c.id, c.id in m.links, mOk(m, c.id), m.locked.has(c.id), m.flagged.has(c.id))}" data-side="L" data-id="${c.id}">${c.img ? `<img src="${c.img}" alt="" onload="drawLines()">` : ''}<span>${esc(c.name)}</span></div>`).join('');
   $('mRight').innerHTML = m.right.map((r, i) => {
     const from = linkedR.get(i);
-    return `<div class="${cls('R', m.sel && m.sel.side==='R' && m.sel.id===i, from !== undefined, from !== undefined && mOk(m, from))}" data-side="R" data-id="${i}">${esc(fmt(r))}</div>`;
+    return `<div class="${cls('R', m.sel && m.sel.side==='R' && m.sel.id===i, from !== undefined, from !== undefined && mOk(m, from), from !== undefined && m.locked.has(from), from !== undefined && m.flagged.has(from))}" data-side="R" data-id="${i}">${esc(fmt(r))}</div>`;
   }).join('');
   $('match').classList.toggle('done', m.revealed);
   drawLines();
@@ -677,7 +682,7 @@ function drawLines(){
     });
   }
   Object.entries(m.links).forEach(([id, ri]) => {
-    out += seg(id, ri, m.revealed ? (mOk(m, id) ? 'ok' : 'no') : '');
+    out += seg(id, ri, m.revealed ? (mOk(m, id) ? 'ok' : 'no') : m.locked.has(id) ? 'ok' : m.flagged.has(id) ? 'no' : '');
   });
   svg.innerHTML = out;
 }
@@ -688,6 +693,9 @@ $('match').addEventListener('click', e => {
   const el = e.target.closest('.mitem'), m = mState;
   if(!el || !m || m.revealed) return;
   const side = el.dataset.side, id = side === 'L' ? el.dataset.id : +el.dataset.id;
+  const owner = side === 'L' ? id : Object.keys(m.links).find(k => m.links[k] === id);
+  if(owner !== undefined && m.locked.has(owner)) return;            // 已鎖定的正確連線不能改
+  if(m.flagged.size){ m.flagged.forEach(k => delete m.links[k]); m.flagged.clear(); }   // 下一位玩家開始:清掉錯誤的線
   if(m.sel && m.sel.side !== side){                      // 另一邊已選 → 連線
     const lid = side === 'L' ? id : m.sel.id, ri = side === 'R' ? id : m.sel.id;
     for(const k of Object.keys(m.links)) if(k === lid || m.links[k] === ri) delete m.links[k];
@@ -703,6 +711,20 @@ $('match').addEventListener('click', e => {
   renderMatch();
 });
 
+function checkMatch(){
+  const m = mState;
+  if(!m || m.revealed) return;
+  const ids = Object.keys(m.links);
+  if(!ids.length){ alert('還沒有連任何線'); return; }
+  ids.forEach(id => (mOk(m, id) ? m.locked : m.flagged).add(id));
+  m.sel = null;
+  const done = m.locked.size, total = m.cards.length;
+  $('mResult').textContent = done === total
+    ? '全部答對了!請按「顯示正確答案」結算。'
+    : `目前答對 ${done} / ${total} 組(綠線已鎖定)。錯誤的紅線會在下一位玩家操作時清除,請繼續連線。`;
+  $('mResult').classList.remove('hidden');
+  renderMatch();
+}
 function revealMatch(){
   const m = mState;
   if(!m || m.revealed) return;
@@ -717,11 +739,13 @@ function revealMatch(){
     : `答對 ${right} / ${m.cards.length} 組,用時 ${fmtTime(sec)}(綠色虛線為正確答案)`;
   $('mResult').classList.remove('hidden');
   $('btnRevealM').classList.add('hidden');
+  $('btnCheckM').classList.add('hidden');
   $('btnNextM').classList.remove('hidden');
   renderMatch();
 }
 $('btnStartM').onclick = $('btnNextM').onclick = startMatch;
 $('btnRevealM').onclick = revealMatch;
+$('btnCheckM').onclick = checkMatch;
 
 /* ---------- init ---------- */
 load();
