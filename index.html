@@ -67,6 +67,21 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
 .answer .gcard .num{display:block}
 .controls{display:flex;gap:12px;justify-content:center;margin-top:16px}
 .controls .btn{font-size:20px;padding:12px 32px}
+/* matching */
+.match{position:relative;display:flex;justify-content:space-between;gap:clamp(70px,20vw,260px);padding:16px;background:var(--panel);border:2px dashed var(--line);border-radius:14px}
+.mcol{flex:1 1 0;display:flex;flex-direction:column;gap:12px;min-width:0}
+.mitem{flex:1;min-height:64px;display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 14px;border:3px solid var(--line);border-radius:14px;background:var(--bg);font-size:clamp(18px,2.4vw,32px);font-weight:700;cursor:pointer;user-select:none;text-align:center;word-break:break-word}
+.mitem img{height:56px;max-width:90px;object-fit:contain;border-radius:6px;pointer-events:none}
+.mitem.linked{border-color:var(--accent)}
+.mitem.sel{border-color:var(--accent);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 30%,transparent)}
+.mitem.ok{border-color:var(--good);background:var(--good-bg)}
+.mitem.no{border-color:var(--bad);background:var(--bad-bg)}
+.match.done .mitem{cursor:default}
+#mSvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
+#mSvg line{stroke:var(--accent);stroke-width:4;stroke-linecap:round}
+#mSvg line.ok{stroke:var(--good)}
+#mSvg line.no{stroke:var(--bad);opacity:.6}
+#mSvg line.ans{stroke:var(--good);stroke-dasharray:10 8}
 .empty{text-align:center;padding:60px;color:var(--muted);font-size:18px}
 </style>
 </head>
@@ -74,7 +89,8 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
 <header>
   <h1>📏 大小排序</h1>
   <nav>
-    <button id="tabGame" class="on">遊戲</button>
+    <button id="tabGame" class="on">大小排序</button>
+    <button id="tabMatch">連連看</button>
     <button id="tabDeck">題庫管理</button>
   </nav>
 </header>
@@ -148,6 +164,33 @@ input,select{font:inherit;font-size:16px;padding:7px 10px;border:1px solid var(-
     </div>
   </div>
 </section>
+<!-- 連連看 -->
+<section id="matchView" class="hidden">
+  <div class="panel setup">
+    <label>一次連 <select id="selNM"></select> 組</label>
+    <label>主題 <select id="selTopicM" style="min-width:160px"></select></label>
+    <button class="btn primary" id="btnStartM">開始新回合</button>
+    <button class="btn" id="btnResetScoreM">重設計分</button>
+  </div>
+  <div id="mEmpty" class="empty hidden">此主題的卡片不足 2 張,請換一個主題,或到「題庫管理」新增卡片。</div>
+  <div id="mArea" class="hidden">
+    <div class="stats">
+      <div>⏱ 本回合 <b id="timerM">0:00</b></div>
+      <div>回合 <b id="roundNoM">0</b></div>
+      <div>累計得分 <b id="totalScoreM">0</b> / <span id="totalMaxM">0</span></div>
+    </div>
+    <div class="match" id="match">
+      <svg id="mSvg"></svg>
+      <div class="mcol" id="mLeft"></div>
+      <div class="mcol" id="mRight"></div>
+    </div>
+    <div class="result hidden" id="mResult"></div>
+    <div class="controls">
+      <button class="btn primary" id="btnRevealM">顯示正確答案</button>
+      <button class="btn primary hidden" id="btnNextM">下一回合</button>
+    </div>
+  </div>
+</section>
 </main>
 
 <script>
@@ -216,12 +259,16 @@ function save(){
 /* ---------- tabs ---------- */
 function showTab(t){
   $('tabGame').classList.toggle('on', t==='game');
+  $('tabMatch').classList.toggle('on', t==='match');
   $('tabDeck').classList.toggle('on', t==='deck');
   $('gameView').classList.toggle('hidden', t!=='game');
+  $('matchView').classList.toggle('hidden', t!=='match');
   $('deckView').classList.toggle('hidden', t!=='deck');
   if(t==='deck') renderDeck(); else refreshSetup();
+  if(t==='match') drawLines();
 }
 $('tabGame').onclick = () => showTab('game');
+$('tabMatch').onclick = () => showTab('match');
 $('tabDeck').onclick = () => showTab('deck');
 
 /* ---------- topics ---------- */
@@ -435,6 +482,7 @@ function refreshSetup(){
   const prev = $('selTopic').value;
   topicOptions($('selTopic'), topics.some(t => t.id === prev) ? prev : (topics.find(t => t.cards.length >= 2) || topics[0]).id);
   refreshN();
+  refreshMatchSetup();
 }
 function refreshN(){
   const t = gameTopic(), sel = $('selN'), prevN = +sel.value || 4, max = Math.min(t.cards.length, 12);
@@ -502,8 +550,9 @@ function startRound(){
 }
 
 function updateScore(){
-  $('totalScore').textContent = score.total;
-  $('totalMax').textContent = score.max;
+  $('totalScore').textContent = $('totalScoreM').textContent = score.total;
+  $('totalMax').textContent = $('totalMaxM').textContent = score.max;
+  $('roundNo').textContent = $('roundNoM').textContent = score.round;
 }
 
 function reveal(){
@@ -541,7 +590,138 @@ function reveal(){
 $('btnStart').onclick = startRound;
 $('btnNext').onclick = startRound;
 $('btnReveal').onclick = reveal;
-$('btnResetScore').onclick = () => { score = {total:0, max:0, round:0}; $('roundNo').textContent = 0; updateScore(); };
+$('btnResetScore').onclick = $('btnResetScoreM').onclick = () => { score = {total:0, max:0, round:0}; updateScore(); };
+
+/* ---------- 連連看 ---------- */
+let mState = null, mTimer = null;
+function shuffle(a){ for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function matchTopic(){ return topics.find(t => t.id === $('selTopicM').value) || topics[0]; }
+function refreshMatchSetup(){
+  const prev = $('selTopicM').value;
+  topicOptions($('selTopicM'), topics.some(t => t.id === prev) ? prev : (topics.find(t => t.cards.length >= 2) || topics[0]).id);
+  refreshNM();
+}
+function refreshNM(){
+  const t = matchTopic(), sel = $('selNM'), prevN = +sel.value || 5, max = Math.min(t.cards.length, 10);
+  sel.innerHTML = '';
+  for(let i = 2; i <= Math.max(max, 2); i++) sel.add(new Option(i, i));
+  sel.value = Math.min(prevN, Math.max(max, 2));
+  const ok = t.cards.length >= 2;
+  $('mEmpty').classList.toggle('hidden', ok);
+  $('btnStartM').disabled = !ok;
+  if(!ok) $('mArea').classList.add('hidden');
+}
+$('selTopicM').onchange = refreshNM;
+
+const mOk = (m, id) => {                     // 數值相同即算對
+  const ri = m.links[id];
+  return ri !== undefined && m.right[ri].value === m.cards.find(c => c.id === id).value;
+};
+
+function startMatch(){
+  const t = matchTopic();
+  if(t.cards.length < 2) return;
+  const n = Math.min(+$('selNM').value, t.cards.length);
+  const cards = shuffle([...t.cards]).slice(0, n);
+  mState = {
+    cards, left:shuffle([...cards]),
+    right:shuffle(cards.map(c => ({owner:c.id, value:c.value, unit:c.unit}))),
+    links:{},            // 左邊卡片 id → 右邊索引
+    sel:null, revealed:false, start:Date.now()
+  };
+  score.round++; updateScore();
+  $('mResult').classList.add('hidden');
+  $('btnRevealM').classList.remove('hidden');
+  $('btnNextM').classList.add('hidden');
+  $('mArea').classList.remove('hidden');
+  renderMatch();
+  clearInterval(mTimer);
+  $('timerM').textContent = '0:00';
+  mTimer = setInterval(() => $('timerM').textContent = fmtTime(Math.floor((Date.now() - mState.start)/1000)), 250);
+}
+
+function renderMatch(){
+  const m = mState;
+  const linkedR = new Map(Object.entries(m.links).map(([id, ri]) => [ri, id]));
+  const cls = (base, sel, linked, ok) =>
+    'mitem' + (linked ? ' linked' : '') + (sel ? ' sel' : '') + (m.revealed && linked ? (ok ? ' ok' : ' no') : '');
+  $('mLeft').innerHTML = m.left.map(c => `<div class="${cls('L', m.sel && m.sel.side==='L' && m.sel.id===c.id, c.id in m.links, mOk(m, c.id))}" data-side="L" data-id="${c.id}">${c.img ? `<img src="${c.img}" alt="" onload="drawLines()">` : ''}<span>${esc(c.name)}</span></div>`).join('');
+  $('mRight').innerHTML = m.right.map((r, i) => {
+    const from = linkedR.get(i);
+    return `<div class="${cls('R', m.sel && m.sel.side==='R' && m.sel.id===i, from !== undefined, from !== undefined && mOk(m, from))}" data-side="R" data-id="${i}">${esc(fmt(r))}</div>`;
+  }).join('');
+  $('match').classList.toggle('done', m.revealed);
+  drawLines();
+}
+
+function drawLines(){
+  const m = mState, svg = $('mSvg');
+  if(!m || !$('mArea') || $('mArea').classList.contains('hidden')){ svg.innerHTML = ''; return; }
+  const box = $('match').getBoundingClientRect();
+  svg.setAttribute('width', box.width); svg.setAttribute('height', box.height);
+  const L = id => $('mLeft').querySelector(`[data-id="${id}"]`);
+  const R = i => $('mRight').querySelector(`[data-id="${i}"]`);
+  const pt = (el, side) => {
+    const r = el.getBoundingClientRect();
+    return [(side === 'L' ? r.right : r.left) - box.left, r.top + r.height/2 - box.top];
+  };
+  const seg = (lid, ri, cls) => {
+    const a = L(lid), b = R(ri); if(!a || !b) return '';
+    const [x1, y1] = pt(a, 'L'), [x2, y2] = pt(b, 'R');
+    return `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+  };
+  let out = '';
+  if(m.revealed){
+    m.cards.forEach(c => {                       // 正確連線(虛線),已連對的不重畫
+      if(!mOk(m, c.id)) out += seg(c.id, m.right.findIndex(r => r.owner === c.id), 'ans');
+    });
+  }
+  Object.entries(m.links).forEach(([id, ri]) => {
+    out += seg(id, ri, m.revealed ? (mOk(m, id) ? 'ok' : 'no') : '');
+  });
+  svg.innerHTML = out;
+}
+if(window.ResizeObserver) new ResizeObserver(drawLines).observe($('match'));
+window.addEventListener('resize', drawLines);
+
+$('match').addEventListener('click', e => {
+  const el = e.target.closest('.mitem'), m = mState;
+  if(!el || !m || m.revealed) return;
+  const side = el.dataset.side, id = side === 'L' ? el.dataset.id : +el.dataset.id;
+  if(m.sel && m.sel.side !== side){                      // 另一邊已選 → 連線
+    const lid = side === 'L' ? id : m.sel.id, ri = side === 'R' ? id : m.sel.id;
+    for(const k of Object.keys(m.links)) if(k === lid || m.links[k] === ri) delete m.links[k];
+    m.links[lid] = ri; m.sel = null;
+  } else if(m.sel && m.sel.side === side && m.sel.id === id){
+    m.sel = null;                                        // 再點一次 → 取消選取
+  } else {
+    // 點到已連線的項目 → 先拆線再重新選取
+    if(side === 'L') delete m.links[id];
+    else for(const k of Object.keys(m.links)) if(m.links[k] === id) delete m.links[k];
+    m.sel = {side, id};
+  }
+  renderMatch();
+});
+
+function revealMatch(){
+  const m = mState;
+  if(!m || m.revealed) return;
+  m.revealed = true; m.sel = null;
+  clearInterval(mTimer);
+  const sec = Math.floor((Date.now() - m.start)/1000);
+  $('timerM').textContent = fmtTime(sec);
+  const right = m.cards.filter(c => mOk(m, c.id)).length;
+  score.total += right; score.max += m.cards.length; updateScore();
+  $('mResult').textContent = right === m.cards.length
+    ? `🎉 全對!用時 ${fmtTime(sec)}`
+    : `答對 ${right} / ${m.cards.length} 組,用時 ${fmtTime(sec)}(綠色虛線為正確答案)`;
+  $('mResult').classList.remove('hidden');
+  $('btnRevealM').classList.add('hidden');
+  $('btnNextM').classList.remove('hidden');
+  renderMatch();
+}
+$('btnStartM').onclick = $('btnNextM').onclick = startMatch;
+$('btnRevealM').onclick = revealMatch;
 
 /* ---------- init ---------- */
 load();
