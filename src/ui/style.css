@@ -221,3 +221,25 @@ button.danger { color: var(--warn); border-color: var(--warn); }
 .sort-answer .sort-card { cursor: default; border-color: #1f7a33; }
 .sort-controls { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
 .sort-controls button { min-width: 200px; min-height: 64px; font-size: 1.2rem; }
+
+/* ---- 連連看 ---- */
+.match-board { position: relative; display: flex; justify-content: space-between; gap: clamp(70px, 20vw, 260px); padding: 14px; border: 3px dashed var(--line); border-radius: 18px; background: var(--panel); }
+.match-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.match-item {
+  flex: 1; min-height: 64px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 14px;
+  border: 4px solid var(--line); border-radius: 16px; background: var(--card-front);
+  font-size: clamp(1.1rem, 2.4vw, 1.8rem); font-weight: 800; text-align: center; word-break: break-word;
+}
+.match-item .sort-face, .match-item .face-img { max-height: 56px; }
+.match-item .face-img { width: auto; max-width: 90px; }
+.match-item .sort-face { flex-direction: row; gap: 10px; }
+.match-item.linked { border-color: var(--accent); }
+.match-item.sel { border-color: var(--accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 30%, transparent); }
+.match-item.ok { border-color: #1f7a33; background: var(--matched); }
+.match-item.no { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, var(--panel)); }
+.match-board.done .match-item { cursor: default; }
+.match-lines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.match-lines line { stroke: var(--accent); stroke-width: 5; stroke-linecap: round; }
+.match-lines line.ok { stroke: #1f7a33; }
+.match-lines line.no { stroke: var(--warn); opacity: 0.65; }
+.match-lines line.ans { stroke: #1f7a33; stroke-dasharray: 10 8; }

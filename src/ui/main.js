@@ -10,6 +10,7 @@ import { loadAllBanks } from '../store/banks.js';
 import { app, h, show, onLeave, setNav, setLeaveGuard, canLeave } from './dom.js';
 import { showBankList } from './editor.js';
 import { showSortSetup } from './sort.js';
+import { showMatchSetup } from './match.js';
 
 const MAX_PLAYERS = 6;
 const MATCH_DELAY = 700;
@@ -250,6 +251,7 @@ function startGame(bank, pairs, opts) {
 const SCREENS = [
   ['memory', '翻牌配對', showSetup],
   ['sort', '大小排序', showSortSetup],
+  ['match', '連連看', showMatchSetup],
   ['bank', '題庫管理', () => showBankList({ onBack: showSetup })],
 ];
 document.getElementById('nav').append(...SCREENS.map(([key, label, open]) =>
