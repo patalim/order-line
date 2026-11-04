@@ -179,3 +179,12 @@ button.danger { color: var(--warn); border-color: var(--warn); }
 
 .card .back.numbered { font-size: 34cqw; }
 .card .back.numbered.digits-3 { font-size: 26cqw; }
+
+/* 題庫編輯：數值／單位、工具列 */
+.pair-extra { grid-column: 2 / 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.pair-extra input[type="number"] { width: 9em; }
+.pair-extra input[type="text"] { width: 7em; }
+.auto-preview { margin: 0; min-height: 48px; display: flex; align-items: center; }
+.side .small { margin: 0; min-height: 0; }
+.bank-tools { margin-bottom: 12px; flex-wrap: wrap; }
+@media (max-width: 640px) { .pair-extra { grid-column: 2; } }
