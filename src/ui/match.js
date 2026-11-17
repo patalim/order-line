@@ -24,8 +24,12 @@ export async function showMatchSetup() {
     const settings = loadSettings();
     let bank = usable.find((b) => b.id === settings.matchBankId) ?? usable[0];
 
+    // 列出全部題庫；沒有足夠數值的題庫反灰，並註明原因。
     const bankSelect = h('select', { id: 'match-bank' },
-      usable.map((b) => h('option', { value: b.id }, `${b.name}（${numericPairs(b.pairs).length} 組）`)));
+      banks.map((b) => {
+        const n = numericPairs(b.pairs).length;
+        return h('option', { value: b.id, disabled: n < 2 }, n < 2 ? `${b.name}（沒有數值，無法使用）` : `${b.name}（${n} 組）`);
+      }));
     bankSelect.value = bank.id;
     const countSelect = h('select', { id: 'match-count' });
     function fillCounts() {
@@ -34,7 +38,7 @@ export async function showMatchSetup() {
       countSelect.replaceChildren(...Array.from({ length: max - 1 }, (_, i) => h('option', { value: i + 2 }, `${i + 2} 組`)));
       countSelect.value = String(Math.min(Math.max(keep, 2), max));
     }
-    bankSelect.addEventListener('change', () => { bank = usable.find((b) => b.id === bankSelect.value); fillCounts(); });
+    bankSelect.addEventListener('change', () => { bank = banks.find((b) => b.id === bankSelect.value); fillCounts(); });
     fillCounts();
 
     app.append(h('section', { class: 'setup' },
