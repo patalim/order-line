@@ -190,7 +190,7 @@ function showBankEditor(source, { onDone, isNew = false }) {
         body, caption, error);
     }
 
-    // 數值與單位（選填）：大小排序與連連看會用到，第二張牌選「自動」時也由它產生。
+    // 數值與單位（選填）：只有大小排序會用到，第二張牌選「自動」時也由它產生。
     function valueEditor(pair, n) {
       const value = h('input', { type: 'number', step: 'any', value: pair.value ?? '', placeholder: '數值', 'aria-label': `第 ${n} 組的數值` });
       value.addEventListener('input', () => {
@@ -260,7 +260,7 @@ function showBankEditor(source, { onDone, isNew = false }) {
       h('div', { class: 'field' }, h('label', { class: 'title' }, '題庫名稱', nameInput)),
       h('div', { class: 'field' },
         h('p', { class: 'muted' }, '每一組配對有兩張牌，各自可以是文字或圖片：圖配圖、圖配字、字配字都可以，也能混用。多個題目可以共用同一個答案（例如「3+4」「5+2」都配「7」）：各建一組，答案填一樣的，玩的時候牌面一樣的答案牌可以互換。'),
-        h('p', { class: 'muted' }, '想玩「大小排序」或「連連看」，請在每組填上數值（與單位）。第二張牌選「自動」時，牌面會直接用數值與單位。'),
+        h('p', { class: 'muted' }, '想玩「大小排序」，請在每組填上數值（與單位）；翻牌配對與連連看不需要數值。第二張牌選「自動」時，牌面會直接用數值與單位。'),
         count, list,
         h('button', { type: 'button', class: 'add-pair', onclick: () => {
           const pair = blankPair();

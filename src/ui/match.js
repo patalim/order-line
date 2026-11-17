@@ -2,9 +2,8 @@ import { h, app, show, onLeave, setNav, setLeaveGuard } from './dom.js';
 import { loadAllBanks } from '../store/banks.js';
 import { loadSettings, saveSettings } from '../store/settings.js';
 import { buildMatchRound, createMatchState, pickMatch, checkMatchLinks, revealMatchRound, MATCH_MAX } from '../game/match.js';
-import { numericPairs, formatValue } from '../game/pair.js';
 import { formatTime } from '../game/layout.js';
-import { pairFace } from './face.js';
+import { pairFace, contentFace } from './face.js';
 import { getScore, recordRound, resetScore } from './session.js';
 import { play } from './audio.js';
 
@@ -13,27 +12,25 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 // ---------------- 設定畫面 ----------------
 export async function showMatchSetup() {
   const { banks } = await loadAllBanks();
-  const usable = banks.filter((b) => numericPairs(b.pairs).length >= 2);
+  const usable = banks.filter((b) => b.pairs.length >= 2);
   show(() => {
     setNav('match');
     if (!usable.length) {
       app.append(h('section', { class: 'setup' }, h('h1', {}, '連連看'),
-        h('p', { class: 'hint' }, '目前沒有含「數值」的題庫（至少要有 2 組）。請到「題庫管理」新增，或匯入 CSV。')));
+        h('p', { class: 'hint' }, '目前沒有可用的題庫（至少要有 2 組配對）。請到「題庫管理」新增，或匯入檔案。')));
       return;
     }
     const settings = loadSettings();
     let bank = usable.find((b) => b.id === settings.matchBankId) ?? usable[0];
 
-    // 列出全部題庫；沒有足夠數值的題庫反灰，並註明原因。
+    // 列出全部題庫；配對不足 2 組的反灰，並註明原因。
     const bankSelect = h('select', { id: 'match-bank' },
-      banks.map((b) => {
-        const n = numericPairs(b.pairs).length;
-        return h('option', { value: b.id, disabled: n < 2 }, n < 2 ? `${b.name}（沒有數值，無法使用）` : `${b.name}（${n} 組）`);
-      }));
+      banks.map((b) => h('option', { value: b.id, disabled: b.pairs.length < 2 },
+        b.pairs.length < 2 ? `${b.name}（配對不足 2 組）` : `${b.name}（${b.pairs.length} 組）`)));
     bankSelect.value = bank.id;
     const countSelect = h('select', { id: 'match-count' });
     function fillCounts() {
-      const max = Math.min(MATCH_MAX, numericPairs(bank.pairs).length);
+      const max = Math.min(MATCH_MAX, bank.pairs.length);
       const keep = Number(countSelect.value) || settings.matchCount;
       countSelect.replaceChildren(...Array.from({ length: max - 1 }, (_, i) => h('option', { value: i + 2 }, `${i + 2} 組`)));
       countSelect.value = String(Math.min(Math.max(keep, 2), max));
@@ -43,7 +40,7 @@ export async function showMatchSetup() {
 
     app.append(h('section', { class: 'setup' },
       h('h1', {}, '連連看'),
-      h('p', { class: 'muted' }, '先點左邊的卡片，再點右邊的數值，兩邊就會連起來。'),
+      h('p', { class: 'muted' }, '先點左邊的卡片，再點右邊對應的內容，兩邊就會連起來。'),
       h('div', { class: 'field' }, h('label', { class: 'title', for: 'match-bank' }, '題庫'), bankSelect),
       h('div', { class: 'field' }, h('label', { class: 'title', for: 'match-count' }, '一次連幾組'), countSelect),
       h('button', { type: 'button', class: 'primary start', onclick: () => {
@@ -68,7 +65,7 @@ function startMatchGame(bank, count) {
     const leftButtons = new Map(round.cards.map((card) =>
       [card.id, h('button', { type: 'button', class: 'match-item', 'data-side': 'L', 'data-key': card.id }, pairFace(card))]));
     const rightButtons = new Map(round.right.map((r) =>
-      [r.index, h('button', { type: 'button', class: 'match-item', 'data-side': 'R', 'data-key': String(r.index) }, formatValue(r.value, r.unit))]));
+      [r.index, h('button', { type: 'button', class: 'match-item', 'data-side': 'R', 'data-key': String(r.index) }, contentFace(r.content))]));
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('class', 'match-lines');
     svg.setAttribute('aria-hidden', 'true');

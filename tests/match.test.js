@@ -7,20 +7,45 @@ const text = (value) => ({ type: 'text', value });
 const pair = (id, value) => ({ id, a: text(id), value });
 const pairs = [pair('a', 5), pair('b', 1), pair('c', 9), pair('d', 3), { id: 'x', a: text('x'), b: text('y') }];
 
-const round4 = () => buildMatchRound(pairs, 4, seededRng(1));
+const round4 = () => buildMatchRound(pairs.slice(0, 4), 4, seededRng(1));
 const rightOf = (round, id) => round.right.findIndex((r) => r.owner === id);
 // 連一條線：先點左邊再點右邊
 const link = (round, state, leftId, rightIndex) => pickMatch(round, pickMatch(round, state, 'L', leftId), 'R', rightIndex);
 
-test('buildMatchRound：只抽有數值的配對，右邊是同一批數值', () => {
+test('buildMatchRound：不需要數值，右邊是同一批第二張牌', () => {
   const round = round4();
   assert.equal(round.cards.length, 4);
   assert.deepEqual(round.cards.map((c) => c.id).sort(), ['a', 'b', 'c', 'd']);
-  assert.deepEqual(round.right.map((r) => r.value).sort((m, n) => m - n), [1, 3, 5, 9]);
+  assert.deepEqual(round.right.map((r) => r.content.value).sort(), ['1', '3', '5', '9']); // 沒有 b 時由數值產生
   assert.deepEqual(round.right.map((r) => r.index), [0, 1, 2, 3]);
   assert.deepEqual(buildMatchRound(pairs, 4, seededRng(9)).right, buildMatchRound(pairs, 4, seededRng(9)).right);
   assert.throws(() => buildMatchRound(pairs, 1), RangeError);
-  assert.throws(() => buildMatchRound(pairs, 5), /不足/);
+  assert.throws(() => buildMatchRound(pairs, 6), /不足/); // 題庫只有 5 組
+
+  const all = buildMatchRound(pairs, 5, seededRng(3)); // 沒有數值、只有兩張牌的配對也能玩
+  assert.deepEqual(all.cards.map((c) => c.id).sort(), ['a', 'b', 'c', 'd', 'x']);
+  assert.ok(all.right.some((r) => r.content.value === 'y'));
+});
+
+test('任意配對：文字配文字、圖片配文字、文字配圖片，以第二張牌的牌面判定', () => {
+  const img = (v) => ({ type: 'image', value: `data:image/png;base64,${v}` });
+  const mixed = [
+    { id: 'p1', a: img('AAAA'), b: text('貓') },
+    { id: 'p2', a: text('dog'), b: img('BBBB') },
+    { id: 'p3', a: text('3 + 4'), b: text('7') },
+    { id: 'p4', a: text('5 + 2'), b: text('7') }, // 兩題共用同一個答案
+  ];
+  const round = buildMatchRound(mixed, 4, seededRng(5));
+  const at = (id) => round.right.findIndex((r) => r.owner === id);
+  assert.equal(matchCorrect(round, 'p1', at('p1')), true);
+  assert.equal(matchCorrect(round, 'p2', at('p2')), true);
+  assert.equal(matchCorrect(round, 'p1', at('p2')), false);
+  assert.equal(matchCorrect(round, 'p3', at('p4')), true); // 答案牌面相同，互換也對
+  assert.equal(matchCorrect(round, 'p4', at('p3')), true);
+  assert.equal(matchCorrect(round, 'p3', at('p1')), false);
+  let s = createMatchState();
+  for (const id of ['p1', 'p2', 'p3', 'p4']) s = link(round, s, id, at(id));
+  assert.equal(revealMatchRound(round, s).perfect, true);
 });
 
 test('pickMatch：先點左再點右就連線；先點右再點左也行', () => {

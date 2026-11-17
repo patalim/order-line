@@ -1,8 +1,10 @@
 import { shuffle } from './rng.js';
-import { numericPairs } from './pair.js';
+import { resolveB } from './pair.js';
+import { contentKey } from './deck.js';
 
 // 連連看的規則（純函式；狀態不可變，每個動作回傳新狀態）。
-// 左邊是配對的題目面，右邊是打亂的數值；一對一連線。數值相同（並列）連到任一個都算對。
+// 和翻牌配對一樣不需要數值：左邊是配對的第一張牌（a），右邊是打亂的第二張牌（b，文字或圖片）；
+// 一對一連線。牌面相同的第二張牌（例如「3+4」「5+2」的答案都是 7）連到任一個都算對。
 //
 // state = {
 //   links:   { [左邊配對 id]: 右邊索引 },
@@ -14,13 +16,15 @@ import { numericPairs } from './pair.js';
 
 export const MATCH_MAX = 10;
 
+// 回傳 { cards（左邊的配對）, right（右邊打亂的第二張牌：{ owner, content, key, index }） }。
 export function buildMatchRound(pairs, count, rng = Math.random) {
-  const pool = numericPairs(pairs);
   if (!Number.isInteger(count) || count < 2) throw new RangeError('組數至少要 2 組');
-  if (count > pool.length) throw new RangeError(`有數值的配對只有 ${pool.length} 組，不足 ${count} 組`);
-  const cards = shuffle(pool, rng).slice(0, count);
-  const right = shuffle(cards.map((p) => ({ owner: p.id, value: p.value, unit: p.unit })), rng)
-    .map((r, index) => ({ ...r, index }));
+  if (count > pairs.length) throw new RangeError(`題庫只有 ${pairs.length} 組配對，不足 ${count} 組`);
+  const cards = shuffle(pairs, rng).slice(0, count);
+  const right = shuffle(cards.map((p) => {
+    const content = resolveB(p);
+    return { owner: p.id, content, key: contentKey(content) };
+  }), rng).map((r, index) => ({ ...r, index }));
   return { cards, right };
 }
 
@@ -28,11 +32,11 @@ export const createMatchState = () => ({ links: {}, locked: [], flagged: [], sel
 
 const leftOf = (state, rightIndex) => Object.keys(state.links).find((id) => state.links[id] === rightIndex);
 
-// 左邊配對 leftId 連到右邊 rightIndex 是否正確（數值相同即正確）。
+// 左邊配對 leftId 連到右邊 rightIndex 是否正確（第二張牌的牌面相同即正確）。
 export function matchCorrect(round, leftId, rightIndex) {
   if (rightIndex === undefined) return false;
   const card = round.cards.find((c) => c.id === leftId);
-  return card !== undefined && round.right[rightIndex].value === card.value;
+  return card !== undefined && round.right[rightIndex].key === contentKey(resolveB(card));
 }
 
 // 點選一個項目。side 'L' 的 key 是配對 id，side 'R' 的 key 是右邊索引。
