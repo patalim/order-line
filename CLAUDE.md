@@ -16,8 +16,8 @@
 ## 資料模型（三個遊戲共用）
 - 題庫 `bank = { id, name, pairs, updatedAt }`；配對 `pair = { id, a, b?, value?, unit?, label? }`。
 - `a`、`b` 是牌面 `{ type: 'text'|'image', value }`。`b` 可省略：有 `value` 時，`b` 預設為「數值＋單位」（`game/pair.js` 的 `resolveB`）。
-- `value`／`unit` 是選填的數值與單位；**大小排序與連連看只使用有 `value` 的配對**；`label` 是 `a` 為圖片時的說明文字。
-- 翻牌配對用 `a ↔ b`；排序與連連看用 `a`（題目面）與 `value`／`unit`。
+- `value`／`unit` 是選填的數值與單位；**只有大小排序使用有 `value` 的配對**（`numericPairs`；第二張牌是純數字文字時也算有數值）；`label` 是 `a` 為圖片時的說明文字。
+- 翻牌配對與連連看用 `a ↔ b`（不需要數值，牌面相同的第二張牌可互換）；大小排序用 `a`（題目面）與 `value`／`unit`。
 - 舊版 order-line 的資料（localStorage 的 `orderline.topics.v2`／`orderline.deck.v1`）在第一次啟動時由 `store/legacy.js` 遷移進 IndexedDB（固定 id、可重跑、不刪舊資料）。
 
 ## 程式分層
@@ -31,7 +31,7 @@
 - 按鈕與卡片要大、對比高；滑鼠與觸控都能操作（用 Pointer Events），版面要能隨螢幕縮放（平板直橫向、手機寬度），並支援深色模式。
 - 上傳圖片：以檔頭判斷格式（PNG／JPG／GIF／WebP），**拒絕 SVG**；先縮圖到固定大小（最長邊約 600px）再存。
 - 題庫匯出入：單一題庫 JSON（`memory-match-bank`，版本 2）與整個題庫庫 JSON（`order-line-library`），圖片以 data URL 內嵌；也能匯入舊版 order-line JSON、CSV、Excel。匯入前驗證格式，全有或全無。
-- 並列（數值相同）一律算對：排序依位置比數值，連連看連到任一個相同數值都算對。
+- 並列一律算對：排序依位置比數值；連連看與翻牌配對以第二張牌的牌面（`contentKey`）判定，牌面相同的可互換。
 - 測試：`node --test`。提交前先跑。
 - 提交前先問使用者；commit 訊息結尾加 `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`。
 - 合併進 `main` 前要先經使用者確認（`main` 就是線上網站）。
