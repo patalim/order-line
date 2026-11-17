@@ -160,3 +160,15 @@ test('內建範例：水果含糖量題庫有 20 組、全部有數值且有效'
   assert.equal(numericPairs(fruit.pairs).length, 20);
   assert.deepEqual(validateBank(fruit), []);
 });
+
+test('數值也可取自第二張牌的純數字文字（算式 ↔ 答案）', () => {
+  const p = { id: 'm', a: text('3 + 4'), b: text('7') };
+  assert.equal(hasValue(p), true);
+  assert.deepEqual(numericPairs([p, { id: 'z', a: text('狗'), b: text('貓') }]), [{ ...p, value: 7 }]);
+  assert.equal(hasValue({ id: 'n', a: text('x'), b: text('7 kg') }), false); // 不是純數字
+  assert.equal(numericPairs([{ ...p, b: text(' -2.5 ') }])[0].value, -2.5);
+  assert.equal(numericPairs([{ ...p, value: 9 }])[0].value, 9); // 有 value 時以 value 為準
+  const math = sampleBanks.find((b) => b.id === 'sample-math');
+  assert.equal(numericPairs(math.pairs).length, 18);
+  assert.equal(numericPairs(sampleBanks.find((b) => b.id === 'sample-animals').pairs).length, 0);
+});
