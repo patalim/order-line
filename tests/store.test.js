@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { detectImageType, fitSize } from '../src/store/image-format.js';
 import { isValidContent, validateBank, cloneBank, createBank, blankPair, newId } from '../src/store/bank-model.js';
 import { sampleBanks } from '../src/data/samples.js';
+import { loadSettings } from '../src/store/settings.js';
 
 const bytes = (...b) => Uint8Array.from(b);
 const ascii = (s) => [...s].map((c) => c.charCodeAt(0));
@@ -102,4 +103,20 @@ test('createBank／blankPair／newId', () => {
 
 test('內建範例題庫都是有效題庫', () => {
   for (const bank of sampleBanks) assert.deepEqual(validateBank(bank, { minPairs: 18 }), [], bank.name);
+});
+
+test('設定：舊版「配對成功可再翻一次」轉成每人一次翻幾組', () => {
+  const withSaved = (saved) => {
+    globalThis.localStorage = { getItem: () => (saved === undefined ? null : JSON.stringify(saved)) };
+    try {
+      return loadSettings();
+    } finally {
+      delete globalThis.localStorage;
+    }
+  };
+  assert.equal(withSaved(undefined).turnLimit, 0); // 預設：不限
+  assert.equal(withSaved({ chainOnMatch: true }).turnLimit, 0);
+  assert.equal(withSaved({ chainOnMatch: false }).turnLimit, 1);
+  assert.equal(withSaved({ chainOnMatch: false, turnLimit: 3 }).turnLimit, 3); // 新設定優先
+  assert.equal('chainOnMatch' in withSaved({ chainOnMatch: false }), false);
 });

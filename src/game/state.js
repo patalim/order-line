@@ -3,18 +3,22 @@
 // 這樣規則裡沒有計時器，UI 想等多久都行。
 // 記憶時間模式：preview 為 true 時牌先全部亮出（previewing），期間不能翻牌，由 UI 在倒數結束後呼叫 endPreview。
 
-export function createGame({ cards, players = ['玩家 1'], chainOnMatch = true, preview = false }) {
+// turnLimit：每位玩家輪到時一次可以翻幾組（每組翻兩張，配對成功或失敗都算一組）：1、2、3；
+// 0 代表不限，一直翻到翻錯才換人（配對成功可繼續翻）。
+export function createGame({ cards, players = ['玩家 1'], turnLimit = 0, preview = false }) {
   if (cards.length === 0 || cards.length % 2 !== 0) {
     throw new RangeError('牌數必須是正偶數');
   }
   if (players.length < 1) throw new RangeError('至少需要一位玩家');
+  if (!Number.isInteger(turnLimit) || turnLimit < 0) throw new RangeError('每次翻的組數必須是 0（不限）或正整數');
   return {
     cards: cards.map((c) => ({ ...c, status: 'down' })), // down | up | matched
     players: players.map((name) => ({ name, pairs: 0 })),
     current: 0,
+    turnLimit,
+    turnUsed: 0, // 目前這位玩家這一輪已經翻了幾組
     flipped: [], // 目前翻開、尚未判定的牌 index
     moves: 0, // 步數：每翻兩張算一步
-    chainOnMatch,
     lastResult: null, // 'match' | 'miss'，供音效用
     finished: false,
     previewing: preview,
@@ -80,13 +84,16 @@ export function resolve(state) {
   const players = matched
     ? state.players.map((p, k) => (k === state.current ? { ...p, pairs: p.pairs + 1 } : p))
     : state.players;
-  const keepTurn = matched && state.chainOnMatch;
+  const used = state.turnUsed + 1;
+  const turnOver = state.turnLimit === 0 ? !matched : used >= state.turnLimit;
+  const changeTurn = turnOver && !finished;
   return {
     ...state,
     cards,
     players,
     flipped: [],
-    current: keepTurn || finished ? state.current : (state.current + 1) % state.players.length,
+    current: changeTurn ? (state.current + 1) % state.players.length : state.current,
+    turnUsed: changeTurn ? 0 : used,
     lastResult: matched ? 'match' : 'miss',
     finished,
   };

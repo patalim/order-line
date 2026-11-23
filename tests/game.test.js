@@ -84,8 +84,8 @@ test('配對成功：計分、牌保持翻開、連續配對時不換人', () =>
   assert.equal(s.lastResult, 'match');
 });
 
-test('配對成功但關閉連續配對：換人', () => {
-  const g = createGame({ cards: fixedCards(), players: ['甲', '乙'], chainOnMatch: false });
+test('每人一次翻 1 組：配對成功也換人', () => {
+  const g = createGame({ cards: fixedCards(), players: ['甲', '乙'], turnLimit: 1 });
   const s = resolve(play(g, 0, 1));
   assert.equal(s.players[0].pairs, 1);
   assert.equal(s.current, 1);
@@ -115,7 +115,7 @@ test('resolve 在沒有待判定時原樣回傳', () => {
 });
 
 test('全部配完：finished，最後一組不換人，之後不能再翻', () => {
-  let s = createGame({ cards: fixedCards(), players: ['甲', '乙'], chainOnMatch: false });
+  let s = createGame({ cards: fixedCards(), players: ['甲', '乙'], turnLimit: 1 });
   s = resolve(play(s, 0, 1)); // 甲得分，換乙
   s = resolve(play(s, 2, 3)); // 乙得分，換甲
   s = resolve(play(s, 4, 5)); // 甲得分，結束
@@ -244,4 +244,58 @@ test('共用答案：不改動傳入的狀態', () => {
   resolve(flipped);
   isMatch(flipped);
   assert.deepEqual(flipped, snapshot);
+});
+
+test('每人一次翻 2 組：不管成功失敗，翻滿 2 組才換人', () => {
+  let s = createGame({ cards: fixedCards(), players: ['甲', '乙', '丙'], turnLimit: 2 });
+  s = resolve(play(s, 0, 2)); // 甲：失敗，算第 1 組
+  assert.equal(s.current, 0);
+  assert.equal(s.turnUsed, 1);
+  s = resolve(play(s, 0, 1)); // 甲：成功，算第 2 組 → 換乙
+  assert.equal(s.players[0].pairs, 1);
+  assert.equal(s.current, 1);
+  assert.equal(s.turnUsed, 0);
+  s = resolve(play(s, 2, 4)); // 乙：失敗
+  s = resolve(play(s, 2, 4)); // 乙：再失敗 → 換丙
+  assert.equal(s.current, 2);
+  s = resolve(play(s, 2, 3)); // 丙：成功
+  s = resolve(play(s, 4, 5)); // 丙：成功，全部配完
+  assert.equal(s.finished, true);
+  assert.equal(s.current, 2); // 結束時不換人
+});
+
+test('每人一次翻 3 組：連續成功也要翻滿 3 組才換人', () => {
+  const cards = [0, 0, 1, 1, 2, 2, 3, 3].map((pairId, id) => ({ id, pairId, key: `k${pairId}`, partnerKey: `k${pairId}` }));
+  let s = createGame({ cards, players: ['甲', '乙'], turnLimit: 3 });
+  s = resolve(play(s, 0, 1));
+  s = resolve(play(s, 2, 3));
+  assert.equal(s.current, 0);
+  assert.equal(s.turnUsed, 2);
+  s = resolve(play(s, 4, 5)); // 第 3 組
+  assert.equal(s.current, 1);
+  assert.equal(s.turnUsed, 0);
+});
+
+test('不限（0）：配對成功繼續、翻錯才換人；turnUsed 隨之累計與歸零', () => {
+  let s = createGame({ cards: fixedCards(), players: ['甲', '乙'], turnLimit: 0 });
+  s = resolve(play(s, 0, 1)); // 成功，繼續
+  assert.equal(s.current, 0);
+  assert.equal(s.turnUsed, 1);
+  s = resolve(play(s, 2, 4)); // 翻錯 → 換人
+  assert.equal(s.current, 1);
+  assert.equal(s.turnUsed, 0);
+});
+
+test('單人時 turnLimit 不影響誰在玩', () => {
+  let s = createGame({ cards: fixedCards(), turnLimit: 1 });
+  s = resolve(play(s, 0, 2));
+  assert.equal(s.current, 0);
+  s = resolve(play(s, 0, 1));
+  assert.equal(s.current, 0);
+});
+
+test('createGame：turnLimit 必須是 0 或正整數', () => {
+  assert.throws(() => createGame({ cards: fixedCards(), turnLimit: -1 }), RangeError);
+  assert.throws(() => createGame({ cards: fixedCards(), turnLimit: 1.5 }), RangeError);
+  assert.equal(createGame({ cards: fixedCards() }).turnLimit, 0); // 預設不限
 });

@@ -49,7 +49,8 @@ async function showSetup() {
     const playerGroup = radioGroup('players', Array.from({ length: MAX_PLAYERS }, (_, i) => [i + 1, `${i + 1} 人`]), playerCount, (v) => { playerCount = Number(v); refresh(); }, 'compact');
     customInput.value = settings.customPairs;
     customInput.addEventListener('input', refresh);
-    const chain = h('input', { type: 'checkbox', id: 'chain', checked: settings.chainOnMatch });
+    let turnLimit = [0, 1, 2, 3].includes(Number(settings.turnLimit)) ? Number(settings.turnLimit) : 0;
+    const turnGroup = radioGroup('turnLimit', [[1, '1 組'], [2, '2 組'], [3, '3 組'], [0, '不限（翻錯才換人）']], turnLimit, (v) => { turnLimit = Number(v); }, 'compact');
     const sound = h('input', { type: 'checkbox', id: 'sound', checked: settings.sound });
     bankSelect.addEventListener('change', () => { bank = banks.find((b) => b.id === bankSelect.value); refresh(); });
 
@@ -74,11 +75,11 @@ async function showSetup() {
 
     startBtn.addEventListener('click', () => {
       const players = names.slice(0, playerCount).map((n, i) => n.trim() || `玩家 ${i + 1}`);
-      const next = { ...settings, bankId: bank.id, size, customPairs: Number(customInput.value) || settings.customPairs, players, chainOnMatch: chain.checked, memorySeconds, cardBack, sound: sound.checked };
+      const next = { ...settings, bankId: bank.id, size, customPairs: Number(customInput.value) || settings.customPairs, players, turnLimit, memorySeconds, cardBack, sound: sound.checked };
       saveSettings(next);
       setSoundEnabled(next.sound);
       play('flip'); // 在使用者操作內啟動 AudioContext
-      startGame(bank, pairCount(), { players, chainOnMatch: next.chainOnMatch, memorySeconds, cardBack });
+      startGame(bank, pairCount(), { players, turnLimit, memorySeconds, cardBack });
     });
 
     app.append(h('section', { class: 'setup' },
@@ -91,8 +92,8 @@ async function showSetup() {
       h('fieldset', { class: 'field' }, h('legend', {}, '玩家人數'), playerGroup, h('div', { style: 'margin-top:10px' }, nameBox)),
       h('fieldset', { class: 'field' }, h('legend', {}, '牌背（蓋起來時顯示）'), cardBackGroup),
       h('fieldset', { class: 'field' }, h('legend', {}, '記憶時間（開局先看幾秒）'), memoryGroup),
+      h('fieldset', { class: 'field' }, h('legend', {}, '每人一次翻幾組（多人時；翻兩張算一組）'), turnGroup),
       h('div', { class: 'field' },
-        h('label', { class: 'inline' }, chain, '配對成功可再翻一次（多人時）'),
         h('label', { class: 'inline' }, sound, '音效')),
       hint, startBtn));
     refresh();
@@ -101,9 +102,9 @@ async function showSetup() {
 
 // ---------------- 遊戲畫面 ----------------
 function startGame(bank, pairs, opts) {
-  const { players, chainOnMatch, memorySeconds = 0, cardBack = 'question' } = opts;
+  const { players, turnLimit = 0, memorySeconds = 0, cardBack = 'question' } = opts;
   show(() => {
-    let state = createGame({ cards: buildDeck(bank.pairs, pairs), players, chainOnMatch, preview: memorySeconds > 0 });
+    let state = createGame({ cards: buildDeck(bank.pairs, pairs), players, turnLimit, preview: memorySeconds > 0 });
     let startedAt = null;
     let finalMs = 0;
     let timerId = null;
@@ -130,7 +131,7 @@ function startGame(bank, pairs, opts) {
       if (state.players.length > 1) {
         scores.replaceChildren(...state.players.map((p, i) =>
           h('span', { class: `score${i === state.current && !state.finished ? ' turn' : ''}` },
-            `${i === state.current && !state.finished ? '▶ ' : ''}${p.name}：${p.pairs} 組`)));
+            `${i === state.current && !state.finished ? '▶ ' : ''}${p.name}：${p.pairs} 組${i === state.current && !state.finished && state.turnLimit > 0 ? `（第 ${state.turnUsed + 1}／${state.turnLimit} 次翻牌）` : ''}`)));
       }
     }
 
